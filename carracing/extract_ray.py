@@ -20,7 +20,7 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
     
     total_frames = 0
     model.make_env(render_mode=render_mode, full_episode=True)
-    for _ in range(max_nrof_trials): # 200 trials per worker
+    for trial in range(max_nrof_trials): # 200 trials per worker
       try:
         random_generated_int = random.randint(0, 2**31-1)
         filename = dir_name+"/"+str(random_generated_int)+".npz"
@@ -31,7 +31,6 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
         model.env.seed(random_generated_int)
     
         # random policy
-        # This is causing a memory leak!!! Adds new assign operations everytime it's ran.
         model.init_random_model_params(stdev=np.random.rand()*0.01)
     
         model.reset()
@@ -56,7 +55,7 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
             break
     
         total_frames += (frame+1)
-        print("%s: worker %d dead at %d total recorded frames %d" % (gettime(), worker_index, frame+1, total_frames))
+        print("%s: worker %d, trial %d, dead at %d, total recorded frames %d" % (gettime(), worker_index, trial, frame+1, total_frames))
         recording_obs = np.array(recording_obs, dtype=np.uint8)
         recording_action = np.array(recording_action, dtype=np.float16)
         np.savez_compressed(filename, obs=recording_obs, action=recording_action)
