@@ -11,7 +11,8 @@ def reset_graph():
   tf.reset_default_graph()
 
 class ConvVAE(object):
-  def __init__(self, z_size=32, batch_size=1, learning_rate=0.0001, kl_tolerance=0.5, is_training=False, reuse=False, gpu_mode=False):
+  def __init__(self, x, z_size=32, batch_size=1, learning_rate=0.0001, kl_tolerance=0.5, is_training=False, reuse=False, gpu_mode=False):
+    self.x = x
     self.z_size = z_size
     self.batch_size = batch_size
     self.learning_rate = learning_rate
@@ -31,7 +32,7 @@ class ConvVAE(object):
     self.g = tf.get_default_graph()  #tf.Graph()
     with self.g.as_default():
 
-      self.x = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+      #self.x = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
 
       # Encoder
       h = tf.layers.conv2d(self.x, 32, 4, strides=2, activation=tf.nn.relu, name="enc_conv1")
