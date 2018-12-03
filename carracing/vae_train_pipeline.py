@@ -43,7 +43,6 @@ def gen(filelist, path):
   for fn in filelist:
     data = np.load(os.path.join(path, fn))['obs']
     for i in range(data.shape[0]):
-      #print('%s: %d' % (fn, i))
       yield np.float32(data[i,:,:,:]) / 255.0
 
 def create_dataset(filelist, path, nrof_epochs, shuffle_buffer_size, batch_size):
