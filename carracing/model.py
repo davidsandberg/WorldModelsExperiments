@@ -51,7 +51,8 @@ class Model:
   def __init__(self, load_model=True):
     tf.reset_default_graph()
     self.env_name = "carracing"
-    self.vae = ConvVAE(batch_size=1, gpu_mode=False, is_training=False, reuse=False)
+    x = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+    self.vae = ConvVAE(x, batch_size=1, gpu_mode=False, is_training=False, reuse=False)
 
     self.rnn = MDNRNN(hps_sample, gpu_mode=False, reuse=False)
         

@@ -7,7 +7,6 @@ import random
 import os
 import argparse
 import datetime
-import cv2
 import gym  # @UnresolvedImport
 import Box2D  # @UnresolvedImport
 import ray  # @UnresolvedImport
@@ -42,10 +41,9 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
           else:
             model.env.render("rgb_array")
             
-          obs = cv2.resize(obs, (64, 64), interpolation = cv2.INTER_AREA)  # @UndefinedVariable
           recording_obs.append(obs)
     
-          z, mu, logvar = model.encode_obs(obs)
+          z, _, _ = model.encode_obs(obs)
           action = model.get_action(z)
     
           recording_action.append(action)
