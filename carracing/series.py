@@ -9,24 +9,28 @@ import tensorflow as tf
 from tensorflow.python.data import Dataset
 from vae.vae import ConvVAE, reset_graph
 import time
+import datetime
+
+def gettime():
+    return datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d-%H%M%S')
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-DATA_DIR = "record/20181130-233040"
-SERIES_DIR = "series"
-model_path_name = "tf_vae"
+DATA_DIR = os.path.join('record', '20181203-220648')
+model_path_name = os.path.join('tf_vae', '20181205-170326')
+SERIES_DIR = os.path.join('series', gettime())
 
 if not os.path.exists(SERIES_DIR):
     os.makedirs(SERIES_DIR)
     
-def gen(filelist, path):
-  for fn in filelist:
-    o = np.load(os.path.join(path, fn))['obs']
-    a = np.load(os.path.join(path, fn))['action']
-    for i in range(o.shape[0]):
-      yield (o[i,:,:,:], a[i,:])
-
 def create_dataset(filelist, path, nrof_epochs, shuffle_buffer_size, batch_size):
+  def gen(filelist, path):
+    for fn in filelist:
+      o = np.float32(np.load(os.path.join(path, fn))['obs']) / 255.0
+      a = np.load(os.path.join(path, fn))['action']
+      for i in range(o.shape[0]):
+        yield (o[i,:,:,:], a[i,:])
+        
   ds1 = Dataset.from_generator(lambda: gen(filelist, path), (tf.float32, tf.float32), (tf.TensorShape([64, 64, 3]), tf.TensorShape([3,])))
   ds2 = Dataset.range(10000000)
   ds = tf.data.Dataset.zip((ds1, ds2))
@@ -73,20 +77,18 @@ logvar_dataset = []
 action_dataset = []
 try:
     print('Started')
-    t = time.time()
-    # Keep running next_batch till the Dataset is exhausted
     i = 0
-    t = time.time()
+    # Keep running next_batch till the Dataset is exhausted
     while True:
+        t = time.time()
         mu, logvar, action_, index_ = vae.sess.run([vae.mu, vae.logvar, action, index])
         if not ((index_[1:] - index_[:-1])==1).all():
           raise ValueError('Examples are out-of-order')
         i += 1
         mu_dataset.append(mu.astype(np.float16))
         logvar_dataset.append(logvar.astype(np.float16))
-        action_dataset.append(action_)
+        action_dataset.append(action_.astype(np.float16))
         print("step=%-8d time=%-8.4f batch_size=%-8d" % (i, (time.time()-t), mu.shape[0]))
-        t = time.time()
         
 except tf.errors.OutOfRangeError:
     print('Done!')

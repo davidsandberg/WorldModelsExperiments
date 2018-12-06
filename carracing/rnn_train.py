@@ -6,22 +6,22 @@ also save 1000 initial mu and logvar, for generative experiments (not related to
 import numpy as np
 import os
 import json
-import tensorflow as tf
-import random
 import time
+import utils
 
-from vae.vae import ConvVAE, reset_graph
+from vae.vae import reset_graph
 from rnn.rnn import HyperParams, MDNRNN
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 np.set_printoptions(precision=4, edgeitems=6, linewidth=100, suppress=True)
 
-DATA_DIR = "series"
-model_save_path = "tf_rnn"
+DATA_DIR = os.path.join("series", '20181205-222042')
+subdir = utils.gettime()
+model_save_path = os.path.join("tf_rnn", subdir)
 if not os.path.exists(model_save_path):
   os.makedirs(model_save_path)
   
-initial_z_save_path = "tf_initial_z"
+initial_z_save_path = os.path.join("tf_initial_z", subdir)
 if not os.path.exists(initial_z_save_path):
   os.makedirs(initial_z_save_path)
 
@@ -96,8 +96,7 @@ for local_step in range(hps.num_steps):
     end = time.time()
     time_taken = end-start
     start = time.time()
-    output_log = "step: %d, lr: %.6f, cost: %.4f, train_time_taken: %.4f" % (step, curr_learning_rate, train_cost, time_taken)
-    print(output_log)
+    print("step: %d, lr: %.6f, cost: %.4f, train_time_taken: %.4f" % (step, curr_learning_rate, train_cost, time_taken))
 
 # save the model (don't bother with tf checkpoints json all the way ...)
 rnn.save_json(os.path.join(model_save_path, "rnn.json"))

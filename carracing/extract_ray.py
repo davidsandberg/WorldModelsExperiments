@@ -6,15 +6,15 @@ import numpy as np
 import random
 import os
 import argparse
-import datetime
 import gym  # @UnresolvedImport
 import Box2D  # @UnresolvedImport
 import ray  # @UnresolvedImport
+import utils
 from model import make_model
 
 @ray.remote
 def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=False, dir_name='record'):
-    print('%s: starting worker %d' % (gettime(), worker_index))
+    print('%s: starting worker %d' % (utils.gettime(), worker_index))
     model = make_model(load_model=False)
     
     total_frames = 0
@@ -53,7 +53,7 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
             break
     
         total_frames += (frame+1)
-        print("%s: worker %d, trial %d, dead at %d, total recorded frames %d" % (gettime(), worker_index, trial, frame+1, total_frames))
+        print("%s: worker %d, trial %d, dead at %d, total recorded frames %d" % (utils.gettime(), worker_index, trial, frame+1, total_frames))
         recording_obs = np.array(recording_obs, dtype=np.uint8)
         recording_action = np.array(recording_action, dtype=np.float16)
         np.savez_compressed(filename, obs=recording_obs, action=recording_action)
@@ -64,11 +64,8 @@ def worker(worker_index, max_nrof_trials=200, max_nrof_frames=1000, render_mode=
         continue
     model.env.close()
     model.close_sess()
-    print('%s: worker finished %d' % (gettime(), worker_index))
+    print('%s: worker finished %d' % (utils.gettime(), worker_index))
     
-def gettime():
-    return datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d-%H%M%S')
-  
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate car racing data from a random policy.")
     parser.add_argument("--nrof_workers", default=4, type=int,
@@ -82,7 +79,7 @@ if __name__ == "__main__":
     for p in [np, gym, Box2D, ray]:
         print('%-12s\t%-10s\t%s' % (p.__name__, p.__version__, p.__file__))
     
-    DIR_NAME = os.path.join('record', gettime())
+    DIR_NAME = os.path.join('record', utils.gettime())
     if not os.path.exists(DIR_NAME):
         os.makedirs(DIR_NAME)
     
