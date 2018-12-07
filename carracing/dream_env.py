@@ -6,7 +6,6 @@ import os
 import json
 
 from scipy.misc import imresize as resize
-from scipy.misc import toimage as toimage
 from gym.spaces.box import Box
 from gym.utils import seeding
 
@@ -37,8 +36,8 @@ class CarRacingDream(gym.Env):
   }
 
   def __init__(self, agent):
-    self.observation_space = Box(low=-50., high=50., shape=(32)) # , dtype=np.float32
-    self._seed()
+    self.observation_space = Box(low=-50., high=50., shape=(32,)) # , dtype=np.float32
+    self.seed()
     self.agent = agent
     self.vae = agent.vae
     self.rnn = agent.rnn
@@ -48,9 +47,9 @@ class CarRacingDream(gym.Env):
     self.z = None
     self.temperature = 0.7
     self.vae_frame = None
-    self._reset()
+    self.reset()
 
-  def _seed(self, seed=None):
+  def seed(self, seed=None):
     self.np_random, seed = seeding.np_random(seed)
     return [seed]
 
@@ -58,7 +57,7 @@ class CarRacingDream(gym.Env):
     z = mu + np.exp(logvar/2.0) * self.np_random.randn(*logvar.shape)
     return z
 
-  def _reset(self):
+  def reset(self):
     idx = self.np_random.randint(0, len(initial_mu_logvar))
     init_mu, init_logvar = initial_mu_logvar[idx]
     init_mu = np.array(init_mu)/10000.
@@ -78,8 +77,6 @@ class CarRacingDream(gym.Env):
 
     prev_x = np.zeros((1, 1, OUTWIDTH))
     prev_x[0][0] = self.z
-
-    strokes = np.zeros((1, OUTWIDTH), dtype=np.float32)
 
     input_x = np.concatenate((prev_x, action.reshape(1, 1, 3)), axis=2)
     feed = {s_model.input_x: input_x, s_model.initial_state:self.agent.state}
@@ -107,7 +104,7 @@ class CarRacingDream(gym.Env):
 
     return next_z
 
-  def _step(self, action):
+  def step(self, action):
     self.frame_count += 1
     next_z = self._sample_next_z(action)
     reward = 0
@@ -124,7 +121,7 @@ class CarRacingDream(gym.Env):
     img = img.reshape(64, 64, 3)
     return img
 
-  def _render(self, mode='human', close=False):
+  def render(self, mode='human', close=False):
 
     img = self.decode_obs(self.z)
 

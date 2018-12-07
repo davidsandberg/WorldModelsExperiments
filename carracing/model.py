@@ -3,9 +3,9 @@ import random
 
 import json
 import sys
+import os
 
 from env import make_env
-import time
 import tensorflow as tf
 
 from vae.vae import ConvVAE
@@ -24,6 +24,7 @@ EXP_MODE = MODE_ZH
 
 def make_model(load_model=True):
   # can be extended in the future.
+  os.environ["CUDA_VISIBLE_DEVICES"]="-1"
   model = Model(load_model=load_model)
   return model
 
@@ -57,6 +58,7 @@ class Model:
     self.rnn = MDNRNN(hps_sample, gpu_mode=False, reuse=False)
         
     if load_model:
+      print('Loading VAE and RNN')
       self.vae.load_json('vae/vae.json')
       self.rnn.load_json('rnn/rnn.json')
 
@@ -175,7 +177,7 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
     np.random.seed(seed)
     model.env.seed(seed)
 
-  for episode in range(num_episode):
+  for _ in range(num_episode):
 
     model.reset()
 
@@ -205,7 +207,7 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
       recording_logvar.append(logvar)
       recording_action.append(action)
 
-      obs, reward, done, info = model.env.step(action)
+      obs, reward, done, _ = model.env.step(action)
 
       extra_reward = 0.0 # penalize for turning too frequently
       if train_mode and penalize_turning:
@@ -282,7 +284,7 @@ def main():
   if render_mode:
     N_episode = 1
   reward_list = []
-  for i in range(N_episode):
+  for _ in range(N_episode):
     reward, steps_taken = simulate(model,
       train_mode=False, render_mode=render_mode, num_episode=1)
     if render_mode:

@@ -181,7 +181,9 @@ class MDNRNN():
     
   def init_session(self):
     """Launch TensorFlow session and initialize variables"""
-    self.sess = tf.Session(graph=self.g)
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 1.0 / 16
+    self.sess = tf.Session(graph=self.g, config=config)
     self.sess.run(self.init)
   def close_sess(self):
     """ Close TensorFlow session """

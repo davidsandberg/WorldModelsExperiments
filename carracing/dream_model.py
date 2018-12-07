@@ -7,7 +7,7 @@ import json
 import sys
 
 from dream_env import make_env
-import time
+import tensorflow as tf
 
 from vae.vae import ConvVAE
 from rnn.rnn import hps_sample, MDNRNN, rnn_init_state, rnn_next_state, rnn_output, rnn_output_size
@@ -51,13 +51,16 @@ class Model:
   ''' simple one layer model for car racing '''
   def __init__(self, load_model=True):
     self.env_name = "carracing"
-    self.vae = ConvVAE(batch_size=1, gpu_mode=False, is_training=False, reuse=True)
+    x = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
+    self.vae = ConvVAE(x, batch_size=1, gpu_mode=False, is_training=False, reuse=False)
 
-    self.rnn = MDNRNN(hps_sample, gpu_mode=False, reuse=True)
+    self.rnn = MDNRNN(hps_sample, gpu_mode=False, reuse=False)
 
     if load_model:
-      self.vae.load_json('vae/vae.json')
-      self.rnn.load_json('rnn/rnn.json')
+#       self.vae.load_json('vae/vae.json')
+#       self.rnn.load_json('rnn/rnn.json')
+      self.vae.load_json('tf_vae/20181205-170326/vae.json')
+      self.rnn.load_json('tf_rnn/20181205-224857/rnn.json')
 
     self.state = rnn_init_state(self.rnn)
     self.rnn_mode = True
@@ -155,8 +158,6 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
   t_list = []
 
   max_episode_length = 1000
-  recording_mode = False
-  penalize_turning = False
 
   if train_mode and max_len > 0:
     max_episode_length = max_len
@@ -166,7 +167,7 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
     np.random.seed(seed)
     model.env.seed(seed)
 
-  for episode in range(num_episode):
+  for _ in range(num_episode):
 
     model.reset()
 
@@ -181,7 +182,7 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
       else:
         model.env.render('rgb_array')
 
-      z, reward, done, info = model.env.step(action)
+      z, _, done, _ = model.env.step(action)
 
       if (render_mode):
         print("action", action, "sum.square.z", np.sum(np.square(z)))
