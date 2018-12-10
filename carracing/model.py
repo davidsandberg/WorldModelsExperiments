@@ -177,7 +177,8 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
     np.random.seed(seed)
     model.env.seed(seed)
 
-  for _ in range(num_episode):
+  for i in range(num_episode):
+    print('Starting episode %d of %d, max_episode_length=%d' % (i+1, num_episode, max_episode_length))
 
     model.reset()
 
@@ -215,9 +216,6 @@ def simulate(model, train_mode=False, render_mode=True, num_episode=5, seed=-1, 
         reward += extra_reward
 
       recording_reward.append(reward)
-
-      #if (render_mode):
-      #  print("action", action, "step reward", reward)
 
       total_reward += reward
 

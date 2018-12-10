@@ -155,6 +155,7 @@ def encode_solution_packets(seeds, solutions, train_mode=1, max_len=-1):
   worker_num = 0
   for i in range(n):
     worker_num = int(i / num_worker_trial) + 1
+    print('Encoding solutions packet, worker_num=%d, max_len=%d' % (worker_num, max_len))
     result.append([worker_num, i, seeds[i], train_mode, max_len])
     result.append(np.round(np.array(solutions[i])*PRECISION,0))
   result = np.concatenate(result).astype(np.int32)
@@ -188,7 +189,7 @@ def decode_result_packet(packet):
   return result
 
 def worker(weights, seed, train_mode_int=1, max_len=-1):
-
+  print('Starting worker: num_episodes=%d, max_len=%d' % (num_episode, max_len))
   train_mode = (train_mode_int == 1)
   model.set_model_params(weights)
   reward_list, t_list = simulate(model,
@@ -210,6 +211,7 @@ def slave():
     results = []
     for solution in solutions:
       worker_id, jobidx, seed, train_mode, max_len, weights = solution
+      print('Evaluating solution, worker_id %d, rank %d, jobidx %d, nrof_solutions %d, max_len %d' % (worker_id, rank, int(jobidx), len(solutions), max_len))
       assert (train_mode == 1 or train_mode == 0), str(train_mode)
       worker_id = int(worker_id)
       possible_error = "work_id = " + str(worker_id) + " rank = " + str(rank)
@@ -217,6 +219,7 @@ def slave():
       jobidx = int(jobidx)
       seed = int(seed)
       fitness, timesteps = worker(weights, seed, train_mode, max_len)
+      print('Done evaluating solution, worker_id %d, rank %d, max_len %d' % (worker_id, rank, max_len))
       results.append([worker_id, jobidx, fitness, timesteps])
     result_packet = encode_result_packet(results)
     assert len(result_packet) == RESULT_PACKET_SIZE
@@ -255,7 +258,7 @@ def receive_packets_from_slaves():
 def evaluate_batch(model_params, max_len=-1):
   # duplicate model_params
   solutions = []
-  for i in range(es.popsize):
+  for _ in range(es.popsize):
     solutions.append(np.copy(model_params))
 
   seeds = np.arange(es.popsize)
@@ -324,8 +327,8 @@ def master():
 
     es_solution = es.result()
     model_params = es_solution[0] # best historical solution
-    reward = es_solution[1] # best reward
-    curr_reward = es_solution[2] # best of the current batch
+    _ = es_solution[1] # best reward
+    _ = es_solution[2] # best of the current batch
     model.set_model_params(np.array(model_params).round(4))
 
     r_max = int(np.max(reward_list)*100)/100.
@@ -337,16 +340,16 @@ def master():
 
     if cap_time_mode:
       max_len = 2*int(mean_time_step+1.0)
-    else:
-      max_len = -1
+#     else:
+#       max_len = -1
 
     history.append(h)
 
     with open(filename, 'wt') as out:
-      res = json.dump([np.array(es.current_param()).round(4).tolist()], out, sort_keys=True, indent=2, separators=(',', ': '))
+      _ = json.dump([np.array(es.current_param()).round(4).tolist()], out, sort_keys=True, indent=2, separators=(',', ': '))
 
     with open(filename_hist, 'wt') as out:
-      res = json.dump(history, out, sort_keys=False, indent=0, separators=(',', ':'))
+      _ = json.dump(history, out, sort_keys=False, indent=0, separators=(',', ':'))
 
     sprint(gamename, h)
 
@@ -361,7 +364,7 @@ def master():
       improvement = reward_eval - best_reward_eval
       eval_log.append([t, reward_eval, model_params_quantized])
       with open(filename_log, 'wt') as out:
-        res = json.dump(eval_log, out)
+        _ = json.dump(eval_log, out)
       if (len(eval_log) == 1 or reward_eval > best_reward_eval):
         best_reward_eval = reward_eval
         best_model_params_eval = model_params_quantized
@@ -370,13 +373,13 @@ def master():
           sprint("reset to previous best params, where best_reward_eval =", best_reward_eval)
           es.set_mu(best_model_params_eval)
       with open(filename_best, 'wt') as out:
-        res = json.dump([best_model_params_eval, best_reward_eval], out, sort_keys=True, indent=0, separators=(',', ': '))
+        _ = json.dump([best_model_params_eval, best_reward_eval], out, sort_keys=True, indent=0, separators=(',', ': '))
       # dump history of best
       curr_time = int(time.time()) - start_time
       best_record = [t, curr_time, "improvement", improvement, "curr", reward_eval, "prev", prev_best_reward_eval, "best", best_reward_eval]
       history_best.append(best_record)
       with open(filename_hist_best, 'wt') as out:
-        res = json.dump(history_best, out, sort_keys=False, indent=0, separators=(',', ':'))
+        _ = json.dump(history_best, out, sort_keys=False, indent=0, separators=(',', ':'))
 
       sprint("Eval", t, curr_time, "improvement", improvement, "curr", reward_eval, "prev", prev_best_reward_eval, "best", best_reward_eval)
 
@@ -443,5 +446,6 @@ if __name__ == "__main__":
   parser.add_argument('--sigma_decay', type=float, default=0.999, help='sigma_decay')
 
   args = parser.parse_args()
-  if "parent" == mpi_fork(args.num_worker+1): os.exit()
+  if "parent" == mpi_fork(args.num_worker+1):
+    os.exit()
   main(args)
