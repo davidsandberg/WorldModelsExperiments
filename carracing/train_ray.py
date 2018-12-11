@@ -191,8 +191,9 @@ def decode_result_packet(packet):
 
 @ray.remote
 def worker(weights, seed, train_mode_int=1, max_len=-1):
+  model = make_model()
   model.make_env()
-  print('Starting worker: num_episodes=%d, max_len=%d' % (num_episode, max_len))
+  print('Starting worker: seed=%d, num_episodes=%d, max_len=%d' % (seed, num_episode, max_len))
   train_mode = (train_mode_int == 1)
   model.set_model_params(weights)
   reward_list, t_list = simulate(model,
@@ -292,7 +293,7 @@ def master():
   filename_hist_best = filebase+'.hist_best.json'
   filename_best = filebase+'.best.json'
 
-  model.make_env()
+  #model.make_env()
 
   t = 0
 
@@ -318,12 +319,12 @@ def master():
     #packet_list = encode_solution_packets(seeds, solutions, max_len=max_len)
     #send_packets_to_slaves(packet_list)
     workers = []
-    for i in range(solutions):
+    for i in range(len(seeds)):
       workers.append(worker.remote(solutions[i], seeds[i], max_len=max_len))
     
-    
     #reward_list_total = receive_packets_from_slaves()
-    reward_list_total = ray.get(workers)
+    result = ray.get(workers)
+    reward_list_total = np.array(result)
 
     reward_list = reward_list_total[:, 0] # get rewards
 
@@ -394,6 +395,7 @@ def master():
 
 
 def main(args):
+  ray.init()
   global optimizer, num_episode, eval_steps, num_worker, num_worker_trial, antithetic, seed_start, retrain_mode, cap_time_mode
 
   optimizer = args.optimizer
