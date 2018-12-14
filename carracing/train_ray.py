@@ -15,8 +15,6 @@ robo_humanoid
 #from mpi4py import MPI
 import numpy as np
 import json
-import os
-import subprocess
 import sys
 from model import make_model, simulate
 from es import CMAES, SimpleGA, OpenES, PEPG
@@ -150,44 +148,44 @@ class Seeder:
     result = np.random.randint(self.limit, size=batch_size).tolist()
     return result
 
-def encode_solution_packets(seeds, solutions, train_mode=1, max_len=-1):
-  n = len(seeds)
-  result = []
-  worker_num = 0
-  for i in range(n):
-    worker_num = int(i / num_worker_trial) + 1
-    print('Encoding solutions packet, worker_num=%d, max_len=%d' % (worker_num, max_len))
-    result.append([worker_num, i, seeds[i], train_mode, max_len])
-    result.append(np.round(np.array(solutions[i])*PRECISION,0))
-  result = np.concatenate(result).astype(np.int32)
-  result = np.split(result, num_worker)
-  return result
-
-def decode_solution_packet(packet):
-  packets = np.split(packet, num_worker_trial)
-  result = []
-  for p in packets:
-    result.append([p[0], p[1], p[2], p[3], p[4], p[5:].astype(np.float)/PRECISION])
-  return result
-
-def encode_result_packet(results):
-  r = np.array(results)
-  r[:, 2:4] *= PRECISION
-  return r.flatten().astype(np.int32)
-
-def decode_result_packet(packet):
-  r = packet.reshape(num_worker_trial, 4)
-  workers = r[:, 0].tolist()
-  jobs = r[:, 1].tolist()
-  fits = r[:, 2].astype(np.float)/PRECISION
-  fits = fits.tolist()
-  times = r[:, 3].astype(np.float)/PRECISION
-  times = times.tolist()
-  result = []
-  n = len(jobs)
-  for i in range(n):
-    result.append([workers[i], jobs[i], fits[i], times[i]])
-  return result
+# def encode_solution_packets(seeds, solutions, train_mode=1, max_len=-1):
+#   n = len(seeds)
+#   result = []
+#   worker_num = 0
+#   for i in range(n):
+#     worker_num = int(i / num_worker_trial) + 1
+#     print('Encoding solutions packet, worker_num=%d, max_len=%d' % (worker_num, max_len))
+#     result.append([worker_num, i, seeds[i], train_mode, max_len])
+#     result.append(np.round(np.array(solutions[i])*PRECISION,0))
+#   result = np.concatenate(result).astype(np.int32)
+#   result = np.split(result, num_worker)
+#   return result
+# 
+# def decode_solution_packet(packet):
+#   packets = np.split(packet, num_worker_trial)
+#   result = []
+#   for p in packets:
+#     result.append([p[0], p[1], p[2], p[3], p[4], p[5:].astype(np.float)/PRECISION])
+#   return result
+# 
+# def encode_result_packet(results):
+#   r = np.array(results)
+#   r[:, 2:4] *= PRECISION
+#   return r.flatten().astype(np.int32)
+# 
+# def decode_result_packet(packet):
+#   r = packet.reshape(num_worker_trial, 4)
+#   workers = r[:, 0].tolist()
+#   jobs = r[:, 1].tolist()
+#   fits = r[:, 2].astype(np.float)/PRECISION
+#   fits = fits.tolist()
+#   times = r[:, 3].astype(np.float)/PRECISION
+#   times = times.tolist()
+#   result = []
+#   n = len(jobs)
+#   for i in range(n):
+#     result.append([workers[i], jobs[i], fits[i], times[i]])
+#   return result
 
 @ray.remote
 def worker(weights, seed, train_mode_int=1, max_len=-1):
