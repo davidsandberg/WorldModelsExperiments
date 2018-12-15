@@ -16,11 +16,12 @@ robo_humanoid
 import numpy as np
 import json
 import sys
-from model import make_model, simulate
+from model import make_model
 from es import CMAES, SimpleGA, OpenES, PEPG
 import argparse
 import time
 import ray
+import random
 
 ### ES related code
 num_episode = 1
@@ -187,21 +188,114 @@ class Seeder:
 #     result.append([workers[i], jobs[i], fits[i], times[i]])
 #   return result
 
+
+
 @ray.remote
-def worker(weights, seed, train_mode_int=1, max_len=-1):
-  model = make_model()
-  model.make_env()
-  print('Starting worker: seed=%d, num_episodes=%d, max_len=%d' % (seed, num_episode, max_len))
-  train_mode = (train_mode_int == 1)
-  model.set_model_params(weights)
-  reward_list, t_list = simulate(model,
-    train_mode=train_mode, render_mode=False, num_episode=num_episode, seed=seed, max_len=max_len)
-  if batch_mode == 'min':
-    reward = np.min(reward_list)
-  else:
-    reward = np.mean(reward_list)
-  t = np.mean(t_list)
-  return reward, t
+class CoolDude(object):
+  
+  def __init__(self, i):
+    print('Creating cool dude %d' % i)
+    self.index = i
+    self.model = make_model()
+    self.model.make_env()
+
+  def work(self, weights, seed, train_mode=True, max_len=-1):
+    print('Running worker %d: seed=%d, num_episodes=%d, max_len=%d' % (self.index, seed, num_episode, max_len))
+    self.model.set_model_params(weights)
+
+    reward_list, t_list = self.simulate(train_mode=train_mode, render_mode=False, num_episode=num_episode, seed=seed, max_len=max_len)
+    if batch_mode == 'min':
+      reward = np.min(reward_list)
+    else:
+      reward = np.mean(reward_list)
+    t = np.mean(t_list)
+    return reward, t
+
+  def simulate(self, train_mode=False, render_mode=True, num_episode=5, seed=-1, max_len=-1):
+  
+    reward_list = []
+    t_list = []
+  
+
+    max_episode_length = 1000
+    recording_mode = False
+    penalize_turning = False
+   
+    if train_mode and max_len > 0:
+      max_episode_length = max_len
+   
+    if (seed >= 0):
+      random.seed(seed)
+      np.random.seed(seed)
+      self.model.env.seed(seed)
+   
+    for i in range(num_episode):
+      print('Starting episode %d of %d, max_episode_length=%d' % (i+1, num_episode, max_episode_length))
+   
+      self.model.reset()
+   
+      obs = self.model.env.reset()
+   
+      total_reward = 0.0
+   
+      random_generated_int = np.random.randint(2**31-1)
+   
+      filename = "record/"+str(random_generated_int)+".npz"
+      recording_mu = []
+      recording_logvar = []
+      recording_action = []
+      recording_reward = [0]
+   
+      for t in range(max_episode_length):
+   
+        if render_mode:
+          self.model.env.render("human")
+        else:
+          self.model.env.render('rgb_array')
+   
+        z, mu, logvar = self.model.encode_obs(obs)
+        action = self.model.get_action(z)
+   
+        recording_mu.append(mu)
+        recording_logvar.append(logvar)
+        recording_action.append(action)
+   
+        obs, reward, done, _ = self.model.env.step(action)
+   
+        extra_reward = 0.0 # penalize for turning too frequently
+        if train_mode and penalize_turning:
+          extra_reward -= np.abs(action[0])/10.0
+          reward += extra_reward
+   
+        recording_reward.append(reward)
+   
+        total_reward += reward
+   
+        if done:
+          break
+   
+      #for recording:
+      z, mu, logvar = self.model.encode_obs(obs)
+      action = self.model.get_action(z)
+      recording_mu.append(mu)
+      recording_logvar.append(logvar)
+      recording_action.append(action)
+    
+      recording_mu = np.array(recording_mu, dtype=np.float16)
+      recording_logvar = np.array(recording_logvar, dtype=np.float16)
+      recording_action = np.array(recording_action, dtype=np.float16)
+      recording_reward = np.array(recording_reward, dtype=np.float16)
+    
+      if not render_mode:
+        if recording_mode:
+          np.savez_compressed(filename, mu=recording_mu, logvar=recording_logvar, action=recording_action, reward=recording_reward)
+    
+      if render_mode:
+        print("total reward", total_reward, "timesteps", t)
+      reward_list.append(total_reward)
+      t_list.append(t)
+   
+    return reward_list, t_list
 
 # def slave(solutions):
 #   model.make_env()
@@ -258,7 +352,7 @@ def worker(weights, seed, train_mode_int=1, max_len=-1):
 #   assert check_sum == 0, check_sum
 #   return reward_list_total
 
-def evaluate_batch(model_params, max_len=-1):
+def evaluate_batch(wc, model_params, max_len=-1):
   # duplicate model_params
   solutions = []
   for _ in range(es.popsize):
@@ -266,11 +360,13 @@ def evaluate_batch(model_params, max_len=-1):
 
   seeds = np.arange(es.popsize)
 
-  packet_list = encode_solution_packets(seeds, solutions, train_mode=0, max_len=max_len)
-
-  send_packets_to_slaves(packet_list)
-  reward_list_total = receive_packets_from_slaves()
-
+#   packet_list = encode_solution_packets(seeds, solutions, train_mode=0, max_len=max_len)
+  workers = []
+  for i in range(len(seeds)):
+    workers.append(wc[i].work.remote(solutions[i], seeds[i], train_mode=False, max_len=max_len))
+  
+  result = ray.get(workers)
+  reward_list_total = np.array(result)
   reward_list = reward_list_total[:, 0] # get rewards
   return np.mean(reward_list)
 
@@ -302,6 +398,14 @@ def master():
   best_model_params_eval = None
 
   max_len = -1 # max time steps (-1 means ignore)
+  
+  # Create environments
+  print('Creating workers')
+  nrof_workers = 8
+  wc = []
+  for i in range(nrof_workers):
+    wc.append(CoolDude.remote(i))
+
 
   while True:
     t += 1
@@ -314,13 +418,10 @@ def master():
     else:
       seeds = seeder.next_batch(es.popsize)
 
-    #packet_list = encode_solution_packets(seeds, solutions, max_len=max_len)
-    #send_packets_to_slaves(packet_list)
     workers = []
     for i in range(len(seeds)):
-      workers.append(worker.remote(solutions[i], seeds[i], max_len=max_len))
+      workers.append(wc[i].work.remote(solutions[i], seeds[i], train_mode=True, max_len=max_len))
     
-    #reward_list_total = receive_packets_from_slaves()
     result = ray.get(workers)
     reward_list_total = np.array(result)
 
@@ -367,7 +468,7 @@ def master():
 
       prev_best_reward_eval = best_reward_eval
       model_params_quantized = np.array(es.current_param()).round(4)
-      reward_eval = evaluate_batch(model_params_quantized, max_len=-1)
+      reward_eval = evaluate_batch(wc, model_params_quantized, max_len=-1)
       model_params_quantized = model_params_quantized.tolist()
       improvement = reward_eval - best_reward_eval
       eval_log.append([t, reward_eval, model_params_quantized])
