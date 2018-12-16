@@ -10,7 +10,7 @@ import time
 import utils
 
 from vae.vae import reset_graph
-from rnn.rnn import HyperParams, MDNRNN
+from rnn.tcn import HyperParams, MDNTCN
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 np.set_printoptions(precision=4, edgeitems=6, linewidth=100, suppress=True)
@@ -35,12 +35,12 @@ def random_batch():
   return z, action
 
 def default_hps():
-  return HyperParams(num_steps=4000,
+  return HyperParams(num_steps=8000,
                      max_seq_len=999, # train on sequences of 1000 (so 999 + teacher forcing shift)
                      input_seq_width=35,    # width of our data (32 + 3 actions)
                      output_seq_width=32,    # width of our data is 32
                      rnn_size=256,    # number of rnn cells
-                     batch_size=50,   # minibatch sizes
+                     batch_size=25,   # minibatch sizes
                      grad_clip=1.0,
                      num_mixture=5,   # number of mixtures in MDN
                      learning_rate=0.001,
@@ -76,7 +76,7 @@ with open(os.path.join("tf_initial_z", "initial_z.json"), 'wt') as outfile:
   json.dump([initial_mu, initial_logvar], outfile, sort_keys=True, indent=0, separators=(',', ': '))
 
 reset_graph()
-rnn = MDNRNN(hps_model)
+rnn = MDNTCN(hps_model)
 
 # train loop:
 hps = hps_model
@@ -91,7 +91,8 @@ for local_step in range(hps.num_steps):
   outputs = raw_z[:, 1:, :] # teacher forcing (shift by one predictions)
 
   feed = {rnn.input_x: inputs, rnn.output_x: outputs, rnn.lr: curr_learning_rate}
-  (train_cost, state, train_step, _) = rnn.sess.run([rnn.cost, rnn.final_state, rnn.global_step, rnn.train_op], feed)
+  #(train_cost, state, train_step, _) = rnn.sess.run([rnn.cost, rnn.final_state, rnn.global_step, rnn.train_op], feed)
+  train_cost, train_step, _ = rnn.sess.run([rnn.cost, rnn.global_step, rnn.train_op], feed)
   if (step%20==0 and step > 0):
     end = time.time()
     time_taken = end-start
