@@ -13,7 +13,7 @@ def initialize_settings(sigma_init=0.1, sigma_decay=0.9999):
   filebase = 'log/'+gamename+'.'+optimizer+'.'+str(num_episode)+'.'+str(population)
   model = make_model()
   num_params = model.param_count
-  print("size of model", num_params)
+  print("Size of model: %d" % num_params)
 
   if optimizer == 'ses':
     ses = PEPG(num_params,
@@ -65,10 +65,6 @@ def initialize_settings(sigma_init=0.1, sigma_decay=0.9999):
     es = oes
 
 
-# def sprint(*args):
-#   print(args) # if python3, can do print(*args)
-#   sys.stdout.flush()
-
 class Seeder:
   def __init__(self, init_seed=0):
     np.random.seed(init_seed)
@@ -90,7 +86,6 @@ class Actor(object):
     self.model.make_env()
 
   def work(self, weights, seed, train_mode=True, max_len=-1):
-    print('Running worker %d: seed=%d, num_episodes=%d, max_len=%d' % (self.index, seed, num_episode, max_len))
     self.model.set_model_params(weights)
 
     reward_list, t_list = self.simulate(train_mode=train_mode, render_mode=False, num_episode=num_episode, seed=seed, max_len=max_len)
@@ -118,7 +113,7 @@ class Actor(object):
       self.model.env.seed(seed)
    
     for i in range(num_episode):
-      print('Starting episode %d of %d, max_episode_length=%d' % (i+1, num_episode, max_episode_length))
+      print('Starting episode %d (%d), worker=%d, seed=%d, max_episode_length=%d' % (i+1, num_episode, self.index, seed, max_episode_length))
    
       self.model.reset()
    
