@@ -39,24 +39,20 @@ def default_hps():
                      max_seq_len=999, # train on sequences of 1000 (so 999 + teacher forcing shift)
                      input_seq_width=35,    # width of our data (32 + 3 actions)
                      output_seq_width=32,    # width of our data is 32
-                     rnn_size=256,    # number of rnn cells
+                     nrof_hidden_units=128,    # number of units in the hidden layers
                      batch_size=25,   # minibatch sizes
-                     grad_clip=1.0,
+                     nrof_levels=6,
+                     kernel_size=8,
+                     dropout=0.2,
                      num_mixture=5,   # number of mixtures in MDN
                      learning_rate=0.001,
                      decay_rate=1.0,
                      min_learning_rate=0.00001,
                      use_layer_norm=0, # set this to 1 to get more stable results (less chance of NaN), but slower
-                     use_recurrent_dropout=0,
-                     recurrent_dropout_prob=0.90,
-                     use_input_dropout=0,
-                     input_dropout_prob=0.90,
-                     use_output_dropout=0,
-                     output_dropout_prob=0.90,
                      is_training=1)
 
 hps_model = default_hps()
-hps_sample = hps_model._replace(batch_size=1, max_seq_len=1, use_recurrent_dropout=0, is_training=0)
+hps_sample = hps_model._replace(batch_size=1, max_seq_len=1, is_training=0)
 
 raw_data = np.load(os.path.join(DATA_DIR, "series.npz"))
 
@@ -80,7 +76,8 @@ rnn = MDNTCN(hps_model)
 
 # train loop:
 hps = hps_model
-start = time.time()
+t = time.time()
+train_cost_list = []
 for local_step in range(hps.num_steps):
 
   step = rnn.sess.run(rnn.global_step)
@@ -91,13 +88,12 @@ for local_step in range(hps.num_steps):
   outputs = raw_z[:, 1:, :] # teacher forcing (shift by one predictions)
 
   feed = {rnn.input_x: inputs, rnn.output_x: outputs, rnn.lr: curr_learning_rate}
-  #(train_cost, state, train_step, _) = rnn.sess.run([rnn.cost, rnn.final_state, rnn.global_step, rnn.train_op], feed)
   train_cost, train_step, _ = rnn.sess.run([rnn.cost, rnn.global_step, rnn.train_op], feed)
+  train_cost_list.append(train_cost)
   if (step%20==0 and step > 0):
-    end = time.time()
-    time_taken = end-start
-    start = time.time()
-    print("step: %d, lr: %.6f, cost: %.4f, train_time_taken: %.4f" % (step, curr_learning_rate, train_cost, time_taken))
+    print("step=%d, time=%.4f, lr=%.6f, cost=%.4f" % (step, time.time()-t, curr_learning_rate, np.mean(train_cost_list)))
+    t = time.time()
+    train_cost_list = []
 
 # save the model (don't bother with tf checkpoints json all the way ...)
 rnn.save_json(os.path.join(model_save_path, "rnn.json"))

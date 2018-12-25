@@ -3,33 +3,20 @@ from collections import namedtuple
 import json
 import tensorflow as tf
 
-# hyperparameters for our model. I was using an older tf version, when HParams was not available ...
-
-# controls whether we concatenate (z, c, h), etc for features used for car.
-# MODE_ZCH = 0
-# MODE_ZC = 1
-# MODE_Z = 2
-# MODE_Z_HIDDEN = 3 # extra hidden later
-# MODE_ZH = 4
-
 HyperParams = namedtuple('HyperParams', ['num_steps',
                                          'max_seq_len',
                                          'input_seq_width',
                                          'output_seq_width',
-                                         'rnn_size',
+                                         'nrof_hidden_units',
                                          'batch_size',
-                                         'grad_clip',
+                                         'nrof_levels',
+                                         'kernel_size',
+                                         'dropout',
                                          'num_mixture',
                                          'learning_rate',
                                          'decay_rate',
                                          'min_learning_rate',
                                          'use_layer_norm',
-                                         'use_recurrent_dropout',
-                                         'recurrent_dropout_prob',
-                                         'use_input_dropout',
-                                         'input_dropout_prob',
-                                         'use_output_dropout',
-                                         'output_dropout_prob',
                                          'is_training',
                                         ])
 
@@ -196,13 +183,13 @@ class MDNTCN():
       
     X = self.input_x
     is_training = self.hps.is_training == 1
-    dropout = False
-    nhid = 128
-    levels = 6
-    kernel_size = 8
+    #dropout = 0.2
+    #nhid = 128
+    #levels = 6
+    #kernel_size = 8
     NOUT = OUTWIDTH * KMIX * 3
-
-    conv_out = TemporalConvNet([nhid] * levels, kernel_size, dropout, batch_size=tf.shape(X)[0])(X, training=is_training)
+    
+    conv_out = TemporalConvNet([hps.nrof_hidden_units] * hps.nrof_levels, hps.kernel_size, hps.dropout, batch_size=tf.shape(X)[0])(X, training=is_training)
     dense_out = tf.layers.dense(conv_out, NOUT, activation=None, kernel_initializer=tf.orthogonal_initializer())
     output = tf.reshape(dense_out, [-1, KMIX * 3])
       
@@ -222,10 +209,6 @@ class MDNTCN():
     if self.hps.is_training == 1:
       self.lr = tf.Variable(self.hps.learning_rate, trainable=False)
       optimizer = tf.train.AdamOptimizer(self.lr)
-
-      #gvs = optimizer.compute_gradients(self.cost)
-      #capped_gvs = [(tf.clip_by_value(grad, -self.hps.grad_clip, self.hps.grad_clip), var) for grad, var in gvs]
-      #self.train_op = optimizer.apply_gradients(capped_gvs, global_step=self.global_step, name='train_step')
       self.train_op = optimizer.minimize(self.cost, self.global_step, name='train_step')
 
     # initialize vars
